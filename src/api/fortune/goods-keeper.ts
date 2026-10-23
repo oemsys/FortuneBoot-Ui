@@ -1,4 +1,5 @@
 import { http } from "@/utils/http";
+import type { BillVo } from "@/api/fortune/bill";
 
 export interface GoodsKeeperQuery extends BasePageQuery {
   pageNum?: number;
@@ -15,6 +16,8 @@ export interface GoodsKeeperVo {
   categoryName?: string;
   tagName?: string;
   price?: number;
+  /** 关联账单累计净成本（支出加/收入减） */
+  accumulatedCost?: number;
   purchaseDate?: string;
   warrantyDate?: string;
   useByTimes?: boolean;
@@ -24,6 +27,15 @@ export interface GoodsKeeperVo {
   soldPrice?: boolean;
   remark?: string;
   dailyAverageCost?: string;
+}
+
+/** 归物下拉选项（新增账单-关联归物用） */
+export interface GoodsKeeperOptionVo {
+  goodsKeeperId: number;
+  goodsName?: string;
+  price?: number;
+  /** 关联账单累计净成本 */
+  accumulatedCost?: number;
 }
 
 export interface AddGoodsKeeperCommand {
@@ -92,5 +104,26 @@ export function removeGoodsKeeperApi(bookId: number, goodsKeeperId: number) {
   return http.request(
     "delete",
     `/fortune/goods/keeper/${bookId}/${goodsKeeperId}/remove`
+  );
+}
+
+/** 归物下拉选项 */
+export function getGoodsKeeperOptions(bookId: number) {
+  return http.request<ResponseData<GoodsKeeperOptionVo[]>>(
+    "get",
+    `/fortune/goods/keeper/${bookId}/options`
+  );
+}
+
+/** 查询归物关联的流水 */
+export function getGoodsKeeperBills(
+  bookId: number,
+  keeperId: number,
+  params: GoodsKeeperQuery
+) {
+  return http.request<ResponseData<PageDTO<BillVo>>>(
+    "get",
+    `/fortune/goods/keeper/${bookId}/${keeperId}/bills`,
+    { params }
   );
 }

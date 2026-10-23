@@ -37,6 +37,8 @@ export interface AddBillCommand {
   payeeId?: number;
   billType?: number;
   toAccountId?: number;
+  /** 关联归物ID（仅支出/收入账单可关联，自动叠加其累计成本） */
+  goodsKeeperId?: number | null;
   confirm: boolean;
   include: boolean;
   categoryAmountPair?: Array<CategoryAmountPairVo>;
@@ -58,7 +60,7 @@ export interface BillExtraVo {
   extraType?: number;
   amount?: number;
   accountSide?: number;
-  categoryId?: number;
+  categoryId?: number | string;
   remark?: string;
 }
 
@@ -91,17 +93,49 @@ export interface BillQuery extends BasePageQuery {
 export interface BillVo {
   billId: number;
   bookId: number;
+  bookName?: string;
+  title?: string;
   tradeTime: string;
   billType?: number;
-  categoryAmountPair?: [{ categoryName: string; amount: number }];
+  accountId?: number;
+  accountName?: string;
+  /** 账户图标（Iconify 图标名，如 ep:wallet） */
+  accountIcon?: string;
+  toAccountId?: number;
+  toAccountName?: string;
+  /** 转入账户图标（Iconify 图标名，如 ep:wallet） */
+  toAccountIcon?: string;
+  convertedAmount?: number;
+  /** 9-12本金类流水金额；V2为十进制字符串 */
+  amount?: number | string;
+  orderId?: number | string;
+  categoryAmountPair?: Array<{
+    categoryId?: number;
+    categoryName: string;
+    /** 分类图标（Iconify 图标名，如 ep:menu） */
+    icon?: string;
+    amount: number;
+  }>;
   tagList?: Array<TagVo>;
-  memberList?: Array<{ memberId: number; memberName: string }>; // 新增成员
+  memberList?: Array<{ memberId: number; memberName: string; icon?: string }>; // 新增成员
   currencyCode?: string;
+  payeeId?: number;
   payeeName?: string;
+  /** 交易对象图标（Iconify 图标名，如 ep:shop） */
+  payeeIcon?: string;
   hasFile?: boolean;
   confirm?: boolean;
   include?: boolean;
   extras?: Array<BillExtraVo>;
+  /** 单据组件（关联流水）：PRINCIPAL / INTEREST / FEE / WRITE_OFF */
+  orderComponent?: "PRINCIPAL" | "INTEREST" | "FEE" | "WRITE_OFF";
+  /** 单据流水规则版本：0=旧规则，1=单据新规则 */
+  orderLedgerVersion?: number;
+  /** 是否已作废（回收站） */
+  recycleBin?: boolean;
+  /** V2流水允许动作；旧接口没有该字段时按旧能力处理 */
+  allowedActions?: string[];
+  readOnlyReason?: string | null;
 }
 
 // 分页查询
@@ -157,6 +191,16 @@ export const excludeBillApi = (bookId: number, billId: number) => {
 /** 批量导出用户 */
 export const exportBillExcelApi = (params: BillQuery, fileName: string) => {
   return http.download("/fortune/bill/excel", fileName, {
+    params
+  });
+};
+
+/** 导出可再导入的账单Excel（与导入模板同构，可直接走导入流程回导） */
+export const exportBillImportExcelApi = (
+  params: BillQuery,
+  fileName: string
+) => {
+  return http.download("/fortune/bill/import/excel", fileName, {
     params
   });
 };

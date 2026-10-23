@@ -3,12 +3,14 @@ import { message } from "@/utils/message";
 import type { PaginationProps } from "@pureadmin/table";
 import {
   getFortuneGoodsKeeperPage,
+  getGoodsKeeperBills,
   getGoodsKeeperStatistics,
   type GoodsKeeperQuery,
   type goodsKeeperStatistics,
   type GoodsKeeperVo,
   removeGoodsKeeperApi
 } from "@/api/fortune/goods-keeper";
+import type { BillVo } from "@/api/fortune/bill";
 import {
   getDefaultGroupId,
   getEnableGroupList,
@@ -122,6 +124,111 @@ export function useHook() {
     }
   }
 
+  // ===== 关联流水弹窗 =====
+  const linkedBillsVisible = ref(false);
+  const linkedBillsLoading = ref(false);
+  const linkedBillsData = ref<Array<BillVo>>([]);
+  const linkedBillsBookId = ref<number>();
+  const linkedBillsKeeperId = ref<number>();
+  const linkedBillsPagination = reactive<PaginationProps>({
+    total: 0,
+    pageSize: 10,
+    pageSizes: [10, 20, 50, 100],
+    currentPage: 1,
+    background: true
+  });
+
+  const billTypeLabel = (t?: number | string) => {
+    if (t === 1 || t === "1") return "支出";
+    if (t === 2 || t === "2") return "收入";
+    if (t === 3 || t === "3") return "转账";
+    return String(t ?? "");
+  };
+
+  const formatLinkedAmount = (row: any) => {
+    const amt = Number(row.amount ?? 0);
+    const sign = row.billType === 2 ? "+" : row.billType === 1 ? "-" : "";
+    return `${sign}${amt}`;
+  };
+
+  const formatLinkedCategory = (row: any) => {
+    const list = row.categoryAmountPair;
+    if (!Array.isArray(list) || list.length === 0) return "-";
+    return list
+      .map((c: any) => c.categoryName)
+      .filter(Boolean)
+      .join("、");
+  };
+
+  const linkedBillsColumns: TableColumnList = [
+    { label: "交易时间", prop: "tradeTime", minWidth: 160 },
+    {
+      label: "类型",
+      prop: "billType",
+      width: 90,
+      cellRenderer: ({ row }) => billTypeLabel(row.billType)
+    },
+    { label: "标题", prop: "title", minWidth: 140 },
+    {
+      label: "金额",
+      prop: "amount",
+      width: 120,
+      cellRenderer: ({ row }) => formatLinkedAmount(row)
+    },
+    {
+      label: "分类",
+      prop: "categoryAmountPair",
+      minWidth: 140,
+      cellRenderer: ({ row }) => formatLinkedCategory(row)
+    },
+    { label: "账户", prop: "accountName", minWidth: 120 },
+    { label: "备注", prop: "remark", minWidth: 160 }
+  ];
+
+  async function loadLinkedBills(page = 1) {
+    if (!linkedBillsBookId.value || !linkedBillsKeeperId.value) return;
+    linkedBillsLoading.value = true;
+    try {
+      const res = await getGoodsKeeperBills(
+        linkedBillsBookId.value,
+        linkedBillsKeeperId.value,
+        {
+          pageNum: page,
+          pageSize: linkedBillsPagination.pageSize,
+          bookId: linkedBillsBookId.value
+        }
+      );
+      linkedBillsData.value = res.data.rows ?? [];
+      linkedBillsPagination.total = res.data.total ?? 0;
+      linkedBillsPagination.currentPage = page;
+    } finally {
+      linkedBillsLoading.value = false;
+    }
+  }
+
+  async function openLinkedBills(row: GoodsKeeperVo) {
+    linkedBillsBookId.value = row.bookId;
+    linkedBillsKeeperId.value = row.goodsKeeperId;
+    linkedBillsVisible.value = true;
+    await loadLinkedBills(1);
+  }
+
+  function closeLinkedBills() {
+    linkedBillsVisible.value = false;
+    linkedBillsData.value = [];
+    linkedBillsPagination.currentPage = 1;
+    linkedBillsPagination.total = 0;
+  }
+
+  async function handleLinkedBillsSizeChange(pageSize: number) {
+    linkedBillsPagination.pageSize = pageSize;
+    await loadLinkedBills(1);
+  }
+
+  async function handleLinkedBillsCurrentChange(currentPage: number) {
+    await loadLinkedBills(currentPage);
+  }
+
   const columns: TableColumnList = [
     {
       label: "物品",
@@ -138,6 +245,13 @@ export function useHook() {
       label: "价格",
       prop: "price",
       minWidth: 100
+    },
+    {
+      label: "关联成本",
+      prop: "accumulatedCost",
+      minWidth: 110,
+      cellRenderer: ({ row }) =>
+        row.accumulatedCost == null ? "0" : `¥${row.accumulatedCost}`
     },
     {
       label: "持有时间（天）",
@@ -202,7 +316,7 @@ export function useHook() {
     {
       label: "操作",
       fixed: "right",
-      width: 120,
+      width: 180,
       slot: "operation"
     }
   ];
@@ -225,6 +339,15 @@ export function useHook() {
     resetForm,
     handleRemoveGoodsKeeperApi,
     handleSizeChange,
-    handleCurrentChange
+    handleCurrentChange,
+    linkedBillsVisible,
+    linkedBillsLoading,
+    linkedBillsData,
+    linkedBillsPagination,
+    linkedBillsColumns,
+    openLinkedBills,
+    closeLinkedBills,
+    handleLinkedBillsSizeChange,
+    handleLinkedBillsCurrentChange
   };
 }

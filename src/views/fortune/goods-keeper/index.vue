@@ -79,38 +79,86 @@
           @page-current-change="handleCurrentChange"
         >
           <template #operation="{ row }">
-            <el-button
-              class="reset-margin"
-              link
-              type="primary"
-              :size="size"
-              @click="openFormDialog('modify', row)"
-            >
-              编辑
-            </el-button>
-            <el-popconfirm
-              :title="`确认删除【${row.goodsName}】这条数据？数据一旦删除，将不可恢复！`"
-              @confirm="handleRemoveGoodsKeeperApi(row)"
-            >
-              <template #reference>
-                <el-button class="reset-margin" link type="danger" :size="size">
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
+            <div class="op-btns">
+              <el-button
+                class="reset-margin"
+                link
+                type="success"
+                :size="size"
+                @click="openLinkedBills(row)"
+              >
+                流水
+              </el-button>
+              <el-button
+                class="reset-margin"
+                link
+                type="primary"
+                :size="size"
+                @click="openFormDialog('modify', row)"
+              >
+                编辑
+              </el-button>
+              <el-popconfirm
+                :title="`确认删除【${row.goodsName}】这条数据？数据一旦删除，将不可恢复！`"
+                @confirm="handleRemoveGoodsKeeperApi(row)"
+              >
+                <template #reference>
+                  <el-button
+                    class="reset-margin"
+                    link
+                    type="danger"
+                    :size="size"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </pure-table>
       </template>
     </PureTableBar>
     <goods-keeper-form
       v-if="formVisible"
-      :type="opType"
       v-model="formVisible"
+      :type="opType"
       :row="opRow"
       :group-id="searchForm.groupId"
       :book-id="searchForm.bookId"
       @success="onSearch"
     />
+
+    <!-- 关联流水弹窗 -->
+    <el-dialog
+      v-model="linkedBillsVisible"
+      title="关联流水"
+      width="80%"
+      top="5vh"
+      destroy-on-close
+      @close="closeLinkedBills"
+    >
+      <pure-table
+        border
+        align-whole="center"
+        showOverflowTooltip
+        table-layout="auto"
+        :loading="linkedBillsLoading"
+        adaptive
+        :data="linkedBillsData"
+        :columns="linkedBillsColumns"
+        :pagination="linkedBillsPagination"
+        :paginationSmall="false"
+        :header-cell-style="{
+          background: 'var(--el-table-row-hover-bg-color)',
+          color: 'var(--el-text-color-primary)'
+        }"
+        @page-size-change="handleLinkedBillsSizeChange"
+        @page-current-change="handleLinkedBillsCurrentChange"
+      />
+      <template #footer>
+        <el-button @click="closeLinkedBills">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -149,7 +197,16 @@ const {
   resetForm,
   handleCurrentChange,
   handleSizeChange,
-  handleRemoveGoodsKeeperApi
+  handleRemoveGoodsKeeperApi,
+  linkedBillsVisible,
+  linkedBillsLoading,
+  linkedBillsData,
+  linkedBillsPagination,
+  linkedBillsColumns,
+  openLinkedBills,
+  closeLinkedBills,
+  handleLinkedBillsSizeChange,
+  handleLinkedBillsCurrentChange
 } = useHook();
 
 watch(
@@ -176,4 +233,11 @@ watch(
 
 <style scoped>
 /* 页面特有样式可以在这里添加 */
+.op-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
 </style>

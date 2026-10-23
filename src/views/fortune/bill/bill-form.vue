@@ -16,7 +16,7 @@
           <el-form-item prop="bookId" label="所属账本">
             <el-select
               v-model="formData.bookId"
-              :disabled="props.type === 'edit'"
+              :disabled="props.type === 'edit' || lockOrderContext"
               filterable
               placeholder="请选择账本"
               style="width: 100%"
@@ -35,7 +35,7 @@
           <el-form-item prop="billType" label="交易类型">
             <el-select
               v-model="formData.billType"
-              :disabled="props.type === 'edit'"
+              :disabled="props.type === 'edit' || lockOrderContext"
               filterable
               placeholder="请选择类型"
               style="width: 100%"
@@ -53,37 +53,20 @@
       </el-row>
 
       <el-row :gutter="30">
-        <re-col
-          v-if="formData.billType !== 7 && formData.billType !== 8"
-          :value="24"
-        >
+        <re-col :value="showOrderField ? 12 : 24">
           <el-form-item prop="title" label="标题">
             <el-input v-model="formData.title" placeholder="请输入标题" />
           </el-form-item>
         </re-col>
-        <re-col
-          v-if="formData.billType === 7 || formData.billType === 8"
-          :value="12"
-        >
-          <el-form-item prop="title" label="标题">
-            <el-input v-model="formData.title" placeholder="请输入标题" />
-          </el-form-item>
-        </re-col>
-        <re-col
-          v-if="formData.billType === 7 || formData.billType === 8"
-          :value="12"
-        >
-          <el-form-item
-            prop="orderId"
-            label="单据"
-            :required="formData.billType === 7 || formData.billType === 8"
-          >
+        <re-col v-if="showOrderField" :value="12">
+          <el-form-item prop="orderId" label="单据" :required="showOrderField">
             <el-select
               v-model="formData.orderId"
               filterable
               placeholder="请选择单据"
               style="width: 100%"
-              clearable
+              :clearable="!lockOrderContext && !orderSelectDisabled"
+              :disabled="orderSelectDisabled"
             >
               <el-option
                 v-for="item in financeOrderOptions"
@@ -108,11 +91,11 @@
             />
           </el-form-item>
         </re-col>
-        <re-col :value="12">
+        <re-col v-if="showAccountField" :value="12">
           <el-form-item
             prop="accountId"
             :label="formData.billType === 3 ? '转出账户' : '账户'"
-            :required="formData.billType === 3"
+            :required="accountRequired"
           >
             <el-select
               v-model="formData.accountId"
@@ -126,7 +109,15 @@
                 :key="item.accountId"
                 :label="item.accountName"
                 :value="item.accountId"
-              />
+              >
+                <span class="flex items-center">
+                  <IconifyIconOnline
+                    :icon="getAccountIcon(item)"
+                    class="mr-1 shrink-0"
+                  />
+                  <span>{{ item.accountName }}</span>
+                </span>
+              </el-option>
             </el-select>
           </el-form-item>
         </re-col>
@@ -136,7 +127,7 @@
         :key="index"
         class="category-row"
       >
-        <el-row v-if="formData.billType !== 3" :gutter="30">
+        <el-row v-if="showCategoryFields" :gutter="30">
           <re-col :value="12">
             <el-form-item
               :prop="'categoryAmountPair.' + index + '.amount'"
@@ -177,7 +168,17 @@
                 clearable
                 node-key="categoryId"
                 :filter-node-method="filterNodeMethod('categoryName')"
-              />
+              >
+                <template #default="{ data }">
+                  <span class="flex items-center">
+                    <IconifyIconOnline
+                      :icon="data.icon || 'ep:menu'"
+                      class="mr-1 shrink-0"
+                    />
+                    <span>{{ data.categoryName }}</span>
+                  </span>
+                </template>
+              </el-tree-select>
             </el-form-item>
           </re-col>
           <el-col :span="3" class="category-actions">
@@ -195,11 +196,7 @@
         </el-row>
 
         <!-- 附加费用/优惠（关联到当前分类金额组） -->
-        <el-form-item
-          v-if="formData.billType !== 3"
-          label=" "
-          class="extra-form-item"
-        >
+        <el-form-item v-if="showExtraFields" label=" " class="extra-form-item">
           <div class="extra-panel">
             <div class="extra-actions">
               <button
@@ -268,13 +265,22 @@
       </div>
 
       <el-row :gutter="30">
+        <re-col v-if="showMinimalAmountField" :value="12">
+          <el-form-item prop="amount" label="金额" required>
+            <el-input
+              v-model="formData.amount"
+              placeholder="请输入金额"
+              clearable
+              style="width: 100%"
+            />
+          </el-form-item>
+        </re-col>
         <re-col v-if="formData.billType === 3" :value="12">
           <el-form-item prop="amount" label="转出金额">
-            <el-input-number
+            <el-input
               v-model="formData.amount"
-              :precision="2"
-              :controls="false"
               placeholder="请输入转出金额"
+              clearable
               style="width: 100%"
             />
           </el-form-item>
@@ -293,7 +299,15 @@
                 :key="item.accountId"
                 :label="item.accountName"
                 :value="item.accountId"
-              />
+              >
+                <span class="flex items-center">
+                  <IconifyIconOnline
+                    :icon="getAccountIcon(item)"
+                    class="mr-1 shrink-0"
+                  />
+                  <span>{{ item.accountName }}</span>
+                </span>
+              </el-option>
             </el-select>
           </el-form-item>
         </re-col>
@@ -321,7 +335,7 @@
             />
           </el-form-item>
         </re-col>
-        <re-col :value="12">
+        <re-col v-if="showTagsAndMembers" :value="12">
           <el-form-item prop="tagIdList" label="标签">
             <el-tree-select
               v-model="formData.tagIdList"
@@ -335,10 +349,20 @@
               :props="tagTreeProps"
               node-key="tagId"
               :filter-node-method="filterNodeMethod('tagName')"
-            />
+            >
+              <template #default="{ data }">
+                <span class="flex items-center">
+                  <IconifyIconOnline
+                    :icon="data.icon || 'ep:collection-tag'"
+                    class="mr-1 shrink-0"
+                  />
+                  <span>{{ data.tagName }}</span>
+                </span>
+              </template>
+            </el-tree-select>
           </el-form-item>
         </re-col>
-        <re-col v-if="formData.billType !== 3" :value="12">
+        <re-col v-if="showPayeeField" :value="12">
           <el-form-item prop="payeeId" label="交易对象">
             <el-select
               v-model="formData.payeeId"
@@ -352,12 +376,50 @@
                 :key="item.payeeId"
                 :label="item.payeeName"
                 :value="item.payeeId"
-              />
+              >
+                <span class="flex items-center">
+                  <IconifyIconOnline
+                    :icon="item.icon || 'ep:shop'"
+                    class="mr-1 shrink-0"
+                  />
+                  <span>{{ item.payeeName }}</span>
+                </span>
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </re-col>
+        <!-- 关联归物：仅支出/收入账单可关联，自动叠加累计成本 -->
+        <re-col v-if="showLinkedGoodsKeeper" :value="12">
+          <el-form-item prop="goodsKeeperId" label="关联归物">
+            <el-select
+              v-model="formData.goodsKeeperId"
+              filterable
+              placeholder="请选择关联归物（选填）"
+              clearable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in goodsKeeperOptions"
+                :key="item.goodsKeeperId"
+                :label="item.goodsName"
+                :value="item.goodsKeeperId"
+              >
+                <span class="flex items-center">
+                  <IconifyIconOnline icon="ep:goods" class="mr-1 shrink-0" />
+                  <span>{{ item.goodsName }}</span>
+                  <span
+                    v-if="item.accumulatedCost != null"
+                    class="ml-auto pl-2 text-xs text-gray-400"
+                  >
+                    成本 ¥{{ item.accumulatedCost }}
+                  </span>
+                </span>
+              </el-option>
             </el-select>
           </el-form-item>
         </re-col>
         <!-- 加入成员的选择 -->
-        <re-col v-if="formData.billType !== 3" :value="12">
+        <re-col v-if="showTagsAndMembers" :value="12">
           <el-form-item prop="memberIdList" label="成员">
             <el-select
               v-model="formData.memberIdList"
@@ -372,13 +434,21 @@
                 :key="item.memberId"
                 :label="item.memberName"
                 :value="item.memberId"
-              />
+              >
+                <span class="flex items-center">
+                  <IconifyIconOnline
+                    :icon="item.icon || 'ep:user'"
+                    class="mr-1 shrink-0"
+                  />
+                  <span>{{ item.memberName }}</span>
+                </span>
+              </el-option>
             </el-select>
           </el-form-item>
         </re-col>
       </el-row>
       <el-row :gutter="30">
-        <re-col :value="12">
+        <re-col v-if="showConfirmControls" :value="12">
           <el-form-item prop="confirm" label="确认状态">
             <el-switch
               v-model="formData.confirm"
@@ -388,7 +458,7 @@
             />
           </el-form-item>
         </re-col>
-        <re-col :value="12">
+        <re-col v-if="showIncludeControls" :value="12">
           <el-form-item prop="include" label="统计状态">
             <el-switch
               v-model="formData.include"
@@ -482,11 +552,15 @@
         </div>
       </el-form-item>
 
-      <el-form-item prop="remark" label="备注">
+      <el-form-item
+        prop="remark"
+        :label="currentOrderComponent === 'WRITE_OFF' ? '原因' : '备注'"
+        :required="currentOrderComponent === 'WRITE_OFF'"
+      >
         <el-input
           v-model="formData.remark"
           type="textarea"
-          rows="4"
+          :rows="4"
           placeholder="请输入备注"
         />
       </el-form-item>
@@ -518,9 +592,9 @@ import ReCol from "@/components/ReCol";
 import {
   addBillApi,
   AddBillCommand,
+  BillExtraVo,
   BillVo,
-  modifyBillApi,
-  ModifyBillCommand
+  modifyBillApi
 } from "@/api/fortune/bill";
 import { BookVo, getBookById, getEnableBookList } from "@/api/fortune/book";
 import { AccountVo, getEnableAccountList } from "@/api/fortune/account";
@@ -530,14 +604,40 @@ import { CategoryVo, getEnableCategoryList } from "@/api/fortune/category";
 import { getEnablePayeeList, PayeeVo } from "@/api/fortune/payee";
 import { getEnableTagList, TagVo } from "@/api/fortune/tag";
 import { getEnableMemberList, MemberVo } from "@/api/fortune/member";
+import {
+  getGoodsKeeperOptions,
+  GoodsKeeperOptionVo
+} from "@/api/fortune/goods-keeper";
 import { Plus as PlusIcon } from "@element-plus/icons-vue";
 import { getFileByBillId } from "@/api/fortune/file";
 import dayjs from "dayjs";
 import { QuestionFilled } from "@element-plus/icons-vue";
+import { IconifyIconOnline } from "@/components/ReIcon";
+import { getAccountIcon } from "@/utils/accountIcon";
 import {
-  FinanceOrderVo,
-  getUsingFinanceOrderApi
-} from "@/api/fortune/finance-order";
+  addOrderEntryV2,
+  getFinanceOrderOptionsV2,
+  isOrderVersionConflict,
+  modifyOrderEntryV2,
+  type FinanceOrderDetailVo,
+  type OrderIdLike
+} from "@/api/fortune/finance-order-v2";
+import {
+  buildEntryCommand,
+  buildEntryFormData,
+  ensureEntryRequestId,
+  resolveEntrySubmitRoute,
+  validateOrderEntry,
+  type EntryRequestIdState
+} from "@/views/fortune/finance-order/utils/order-entry-adapter";
+import {
+  BILL_TYPE_OPTIONS,
+  getCashDirection,
+  isMinimalPrincipalBillType,
+  isOrderLinkedBillType,
+  ORDER_COMPONENT,
+  type OrderComponent
+} from "@/views/fortune/finance-order/utils/order-contract";
 import {
   filterNodeMethod,
   categoryTreeProps,
@@ -547,9 +647,20 @@ import {
 const props = defineProps<{
   type: "add" | "edit";
   modelValue: boolean;
-  row?: BillVo;
+  row?: BillVo & {
+    allowedActions?: string[] | null;
+    readOnlyReason?: string | null;
+  };
   groupId: number;
-  bookId: number;
+  bookId: OrderIdLike;
+  contextBookId?: OrderIdLike;
+  contextOrderId?: OrderIdLike;
+  contextBillType?: number;
+  contextComponent?: OrderComponent;
+  contextTitle?: string;
+  contextAmount?: string | null;
+  expectedVersion?: OrderIdLike;
+  lockOrderContext?: boolean;
 }>();
 
 const emits = defineEmits(["update:modelValue", "success"]);
@@ -560,15 +671,49 @@ const visible = computed({
 
 const loading = ref<boolean>(false);
 const formRef = ref();
-const billTypeOptions = [
-  { value: 1, label: "支出" },
-  { value: 2, label: "收入" },
-  { value: 3, label: "转账" },
-  { value: 7, label: "垫付" },
-  { value: 8, label: "报销" }
-];
+interface BillFormCategoryPair {
+  categoryId?: OrderIdLike | null;
+  amount?: number | null;
+}
 
-const formData = reactive<AddBillCommand | ModifyBillCommand>({
+interface BillFormData {
+  bookId?: OrderIdLike;
+  title?: string;
+  tradeTime?: string;
+  accountId?: OrderIdLike | null;
+  orderId?: OrderIdLike | null;
+  amount?: string | null;
+  convertedAmount?: number | null;
+  tagIdList?: Array<OrderIdLike> | null;
+  memberIdList?: Array<OrderIdLike> | null;
+  payeeId?: OrderIdLike | null;
+  billType?: number;
+  toAccountId?: OrderIdLike | null;
+  /** 关联归物ID（仅支出/收入账单可关联） */
+  goodsKeeperId?: OrderIdLike | null;
+  confirm: boolean;
+  include: boolean;
+  categoryAmountPair?: BillFormCategoryPair[];
+  extras?: Array<BillExtraVo>;
+  remark?: string;
+  orderComponent?: OrderComponent | null;
+}
+
+type OrderOptionVo = Pick<
+  FinanceOrderDetailVo,
+  | "orderId"
+  | "title"
+  | "type"
+  | "status"
+  | "currencyCode"
+  | "version"
+  | "pendingAmount"
+  | "reconciliationStatus"
+>;
+
+const billTypeOptions = BILL_TYPE_OPTIONS.filter(item => item.value !== 4);
+
+const formData = reactive<BillFormData>({
   billType: 1,
   confirm: true,
   include: true,
@@ -586,7 +731,7 @@ const rules: FormRules = {
       message: "请选择单据",
       trigger: "change",
       validator: (rule, value, callback) => {
-        if ((formData.billType === 7 || formData.billType === 8) && !value) {
+        if (showOrderField.value && !value) {
           callback(new Error(rule.message as string));
         } else {
           callback();
@@ -599,12 +744,19 @@ const rules: FormRules = {
       message: "请选择账户",
       trigger: "change",
       validator: (rule, value, callback) => {
-        if (formData.billType === 3 && !value) {
+        if (accountRequired.value && !value) {
           callback(new Error(rule.message as string));
         } else {
           callback();
         }
       }
+    }
+  ],
+  amount: [
+    {
+      required: true,
+      message: "金额不能为空",
+      trigger: "blur"
     }
   ],
 
@@ -648,8 +800,99 @@ const categoryOptions = ref<Array<CategoryVo>>([]);
 const payeeOptions = ref<Array<PayeeVo>>();
 const tagOptions = ref<Array<TagVo>>();
 const memberOptions = ref<Array<MemberVo>>();
+const goodsKeeperOptions = ref<Array<GoodsKeeperOptionVo>>([]);
 const fileList = ref([]);
-const financeOrderOptions = ref(Array<FinanceOrderVo>());
+const financeOrderOptions = ref<Array<OrderOptionVo>>([]);
+const orderOptionsReady = ref(false);
+const entryRequestIdState = ref<EntryRequestIdState | null>(null);
+
+function sameId(
+  a: OrderIdLike | null | undefined,
+  b: OrderIdLike | null | undefined
+) {
+  if (a == null || b == null) return false;
+  return String(a).trim() === String(b).trim();
+}
+
+const lockOrderContext = computed(() => props.lockOrderContext === true);
+const rowReadOnly = computed(() => {
+  if (props.row?.readOnlyReason) return true;
+  return (
+    Array.isArray(props.row?.allowedActions) &&
+    !props.row.allowedActions.includes("EDIT")
+  );
+});
+const orderSelectDisabled = computed(
+  () => lockOrderContext.value || rowReadOnly.value
+);
+const currentOrderComponent = computed<OrderComponent | null>(() => {
+  if (isOrderLinkedBillType(formData.billType)) {
+    return ORDER_COMPONENT.PRINCIPAL;
+  }
+  return formData.orderComponent ?? props.contextComponent ?? null;
+});
+const isLinkedEntry = computed(
+  () =>
+    isOrderLinkedBillType(formData.billType) ||
+    formData.orderId != null ||
+    props.contextOrderId != null
+);
+const showOrderField = computed(() => isLinkedEntry.value);
+const isWriteOff = computed(
+  () => currentOrderComponent.value === ORDER_COMPONENT.WRITE_OFF
+);
+const showAccountField = computed(() => !isWriteOff.value);
+const accountRequired = computed(
+  () =>
+    showAccountField.value &&
+    (formData.billType === 3 || isLinkedEntry.value || !!formData.billType)
+);
+const showMinimalAmountField = computed(() =>
+  isMinimalPrincipalBillType(formData.billType)
+);
+const showCategoryFields = computed(
+  () => formData.billType !== 3 && !showMinimalAmountField.value
+);
+const showExtraFields = computed(
+  () => showCategoryFields.value && !isLinkedEntry.value
+);
+const showTagsAndMembers = computed(
+  () => !showMinimalAmountField.value && formData.billType !== 3
+);
+const showPayeeField = computed(
+  () => !showMinimalAmountField.value && formData.billType !== 3
+);
+// 关联归物：仅支出(1)/收入(2) 账单可关联，自动叠加其累计成本
+const showLinkedGoodsKeeper = computed(
+  () => formData.billType === 1 || formData.billType === 2
+);
+const showConfirmControls = computed(
+  () => !showMinimalAmountField.value && !isWriteOff.value
+);
+const showIncludeControls = computed(() => !isLinkedEntry.value);
+const selectedOrder = computed(() =>
+  financeOrderOptions.value.find(item => sameId(item.orderId, formData.orderId))
+);
+const expectedVersion = computed(
+  () => props.expectedVersion ?? selectedOrder.value?.version ?? 0
+);
+const accountCurrencyCode = computed(() => {
+  const account = accountOptions.value?.find(item =>
+    sameId(item.accountId, formData.accountId)
+  );
+  return account?.currencyCode ?? null;
+});
+const currentOrderInfo = computed(() => {
+  if (!selectedOrder.value) return null;
+  return {
+    orderId: selectedOrder.value.orderId,
+    type: selectedOrder.value.type,
+    currencyCode: selectedOrder.value.currencyCode,
+    pendingAmount: selectedOrder.value.pendingAmount ?? null,
+    status: selectedOrder.value.status,
+    reconciliationStatus: selectedOrder.value.reconciliationStatus ?? null
+  };
+});
 onMounted(async () => {
   const [groupRes, booksRes] = await Promise.all([
     getEnableGroupList(),
@@ -685,73 +928,168 @@ const showConvertedAmount = computed(() => {
 
 async function initAccountOptions() {
   const accountsRes = await getEnableAccountList(props.groupId);
-  if (!props.row || props.row.billType === 1 || props.row.billType === 7) {
-    accountOptions.value = accountsRes.data.filter(item => item.canExpense);
-  } else if (props.row.billType === 2 || props.row.billType === 8) {
-    accountOptions.value = accountsRes.data.filter(item => item.canIncome);
-  } else if (props.row.billType === 3) {
+  const direction = getCashDirection(
+    formData.billType,
+    currentOrderComponent.value
+  );
+  if (isWriteOff.value) {
+    accountOptions.value = [];
+    toAccountOptions.value = [];
+  } else if (formData.billType === 3) {
     accountOptions.value = accountsRes.data.filter(item => item.canTransferOut);
     toAccountOptions.value = accountsRes.data.filter(
       item => item.canTransferIn
     );
+  } else if (direction === -1) {
+    accountOptions.value = accountsRes.data.filter(item => item.canExpense);
+  } else if (direction === 1) {
+    accountOptions.value = accountsRes.data.filter(item => item.canIncome);
+  } else {
+    accountOptions.value = accountsRes.data;
   }
+}
+
+/** 加载当前账本下的归物下拉选项（新增账单-关联归物用） */
+async function loadGoodsKeeperOptions() {
+  try {
+    const res = await getGoodsKeeperOptions(Number(props.bookId));
+    goodsKeeperOptions.value = res.data ?? [];
+  } catch {
+    goodsKeeperOptions.value = [];
+  }
+}
+
+function warnLockedContext() {
+  message("单据上下文已锁定，不能切换账本、类型或单据", { type: "warning" });
 }
 
 async function handleBillTypeChange(type: number) {
-  const accountsRes = await getEnableAccountList(props.groupId);
-  const bookRes = await getBookById(props.bookId);
-  if (type === 1) {
-    accountOptions.value = accountsRes.data.filter(item => item.canExpense);
-    handleBookOrBillTypeChange();
-    formData.accountId = bookRes.data.defaultExpenseAccountId;
-  } else if (type === 2) {
-    accountOptions.value = accountsRes.data.filter(item => item.canIncome);
-    handleBookOrBillTypeChange();
-    formData.accountId = bookRes.data.defaultIncomeAccountId;
-  } else if (type === 3) {
-    const tagRes = await getEnableTagList(formData.bookId, formData.billType);
-    tagOptions.value = tagRes.data;
-    accountOptions.value = accountsRes.data.filter(item => item.canTransferOut);
-    toAccountOptions.value = accountsRes.data.filter(
-      item => item.canTransferIn
-    );
-    formData.tagIdList = [];
-    formData.memberIdList = [];
-    formData.categoryAmountPair = [];
-    formData.payeeId = null;
-    formData.extras = [];
-    formData.accountId = bookRes.data.defaultTransferOutAccountId;
-    formData.toAccountId = bookRes.data.defaultTransferInAccountId;
-  } else if (type === 7) {
-    accountOptions.value = accountsRes.data.filter(item => item.canExpense);
-    handleBookOrBillTypeChange();
-    formData.accountId = bookRes.data.defaultExpenseAccountId;
-  } else if (type === 8) {
-    accountOptions.value = accountsRes.data.filter(item => item.canIncome);
-    handleBookOrBillTypeChange();
-    formData.accountId = bookRes.data.defaultIncomeAccountId;
+  if (lockOrderContext.value) {
+    warnLockedContext();
+    return;
   }
+  formData.billType = type;
+  await refreshEntryForBookOrType();
 }
 
 async function handleBookOrBillTypeChange() {
-  formData.categoryAmountPair = [{ categoryId: null, amount: null }];
+  if (lockOrderContext.value) {
+    warnLockedContext();
+    return;
+  }
+  await refreshEntryForBookOrType();
+}
+
+async function refreshEntryForBookOrType() {
+  formData.orderId = null;
+  formData.orderComponent = null;
+  entryRequestIdState.value = null;
+  financeOrderOptions.value = [];
+  orderOptionsReady.value = false;
   formData.payeeId = null;
   formData.tagIdList = [];
   formData.memberIdList = [];
   formData.amount = null;
   formData.toAccountId = null;
-  formData.orderId = null;
+  formData.goodsKeeperId = null;
   formData.extras = [];
   categoryOptions.value = [];
   payeeOptions.value = [];
   tagOptions.value = [];
   memberOptions.value = [];
-  handleCategoryPayeeTagRefresh();
-  const financeOrderRes = await getUsingFinanceOrderApi(formData.bookId);
-  financeOrderOptions.value = financeOrderRes.data;
+
+  if (showMinimalAmountField.value) {
+    formData.categoryAmountPair = [];
+  } else if (formData.billType !== 3) {
+    formData.categoryAmountPair = [{ categoryId: null, amount: null }];
+  } else {
+    formData.categoryAmountPair = [];
+  }
+
+  const bookRes = await getBookById(Number(props.bookId));
+  const direction = getCashDirection(
+    formData.billType,
+    currentOrderComponent.value
+  );
+  if (formData.billType === 3) {
+    formData.accountId = bookRes.data.defaultTransferOutAccountId;
+    formData.toAccountId = bookRes.data.defaultTransferInAccountId;
+  } else if (direction === -1) {
+    formData.accountId = bookRes.data.defaultExpenseAccountId;
+  } else if (direction === 1) {
+    formData.accountId = bookRes.data.defaultIncomeAccountId;
+  }
+
+  await Promise.all([
+    initAccountOptions(),
+    handleCategoryPayeeTagRefresh(),
+    refreshOrderOptions(),
+    loadGoodsKeeperOptions()
+  ]);
+}
+
+function orderTypeForBillType(billType?: number | null): 1 | 2 | 3 {
+  if (billType === 7 || billType === 8) return 1;
+  if (billType === 9 || billType === 10) return 2;
+  return 3;
+}
+
+async function refreshOrderOptions() {
+  if (!isOrderLinkedBillType(formData.billType)) {
+    orderOptionsReady.value = true;
+    return;
+  }
+  const page = await getFinanceOrderOptionsV2(formData.bookId as OrderIdLike, {
+    billType: formData.billType as number,
+    pageNum: 1,
+    pageSize: 100
+  });
+  const rows: OrderOptionVo[] = [...(page.rows ?? [])];
+
+  const contextOrderId = props.contextOrderId ?? null;
+  if (
+    contextOrderId != null &&
+    !rows.some(item => sameId(item.orderId, contextOrderId))
+  ) {
+    rows.push({
+      orderId: contextOrderId,
+      title: "当前单据",
+      type: orderTypeForBillType(props.contextBillType),
+      status: 200,
+      currencyCode: "",
+      version: props.expectedVersion ?? 0,
+      pendingAmount: null,
+      reconciliationStatus: null
+    });
+  }
+  const rowOrderId = props.row?.orderId ?? null;
+  if (
+    rowOrderId != null &&
+    !rows.some(item => sameId(item.orderId, rowOrderId))
+  ) {
+    rows.push({
+      orderId: rowOrderId,
+      title: props.row?.title || "当前单据",
+      type: orderTypeForBillType(props.row?.billType),
+      status: 200,
+      currencyCode: props.row?.currencyCode ?? "",
+      version: props.expectedVersion ?? 0,
+      pendingAmount: null,
+      reconciliationStatus: null
+    });
+  }
+  financeOrderOptions.value = rows;
+  orderOptionsReady.value = true;
 }
 
 async function handleCategoryPayeeTagRefresh() {
+  if (showMinimalAmountField.value) {
+    categoryOptions.value = [];
+    payeeOptions.value = [];
+    tagOptions.value = [];
+    memberOptions.value = [];
+    return;
+  }
   let billType = formData.billType;
   if (formData.billType === 7) {
     billType = 1;
@@ -759,10 +1097,10 @@ async function handleCategoryPayeeTagRefresh() {
     billType = 2;
   }
   const [categoryRes, payeeRes, tagRes, memberRes] = await Promise.all([
-    getEnableCategoryList(formData.bookId, billType),
-    getEnablePayeeList(formData.bookId, billType),
-    getEnableTagList(formData.bookId, billType),
-    getEnableMemberList(formData.bookId)
+    getEnableCategoryList(Number(props.bookId), billType),
+    getEnablePayeeList(Number(props.bookId), billType),
+    getEnableTagList(Number(props.bookId), billType),
+    getEnableMemberList(Number(props.bookId))
   ]);
   categoryOptions.value = categoryRes.data;
   payeeOptions.value = payeeRes.data;
@@ -770,9 +1108,101 @@ async function handleCategoryPayeeTagRefresh() {
   memberOptions.value = memberRes.data;
 }
 
+function resetEntryForm() {
+  Object.assign(formData, {
+    bookId: undefined,
+    title: undefined,
+    tradeTime: undefined,
+    accountId: null,
+    orderId: null,
+    amount: null,
+    convertedAmount: null,
+    tagIdList: [],
+    memberIdList: [],
+    payeeId: null,
+    billType: 1,
+    toAccountId: null,
+    goodsKeeperId: null,
+    confirm: true,
+    include: true,
+    categoryAmountPair: [{ categoryId: null, amount: null }],
+    extras: [],
+    remark: "",
+    orderComponent: null
+  });
+  entryRequestIdState.value = null;
+  financeOrderOptions.value = [];
+  orderOptionsReady.value = false;
+}
+
+async function initializeContextForm() {
+  resetEntryForm();
+  formData.bookId = props.contextBookId ?? props.bookId;
+  formData.orderId = props.contextOrderId ?? null;
+  formData.billType = props.contextBillType ?? 1;
+  formData.orderComponent = props.contextComponent ?? null;
+  formData.tradeTime = dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss");
+  formData.title = props.contextTitle ?? "";
+
+  if (props.contextAmount != null) {
+    if (showMinimalAmountField.value) {
+      formData.amount = props.contextAmount;
+    } else {
+      formData.categoryAmountPair = [
+        { categoryId: null, amount: Number(props.contextAmount) }
+      ];
+    }
+  }
+
+  if (isWriteOff.value) {
+    formData.accountId = null;
+    formData.toAccountId = null;
+    formData.extras = [];
+    formData.categoryAmountPair = [{ categoryId: null, amount: null }];
+    formData.confirm = true;
+    formData.include = true;
+  } else if (showMinimalAmountField.value) {
+    formData.categoryAmountPair = [];
+    formData.extras = [];
+    formData.toAccountId = null;
+    formData.payeeId = null;
+    formData.tagIdList = [];
+    formData.memberIdList = [];
+    formData.include = false;
+  } else {
+    formData.categoryAmountPair = [{ categoryId: null, amount: null }];
+    formData.extras = [];
+    formData.include = true;
+  }
+
+  const bookRes = await getBookById(Number(props.bookId));
+  const direction = getCashDirection(
+    formData.billType,
+    currentOrderComponent.value
+  );
+  if (direction === -1) {
+    formData.accountId = bookRes.data.defaultExpenseAccountId;
+  } else if (direction === 1) {
+    formData.accountId = bookRes.data.defaultIncomeAccountId;
+  }
+
+  await Promise.all([
+    initAccountOptions(),
+    handleCategoryPayeeTagRefresh(),
+    refreshOrderOptions()
+  ]);
+}
+
 async function handleOpened() {
+  if (props.contextOrderId != null) {
+    await initializeContextForm();
+    return;
+  }
+
   if (props.row) {
     Object.assign(formData, props.row);
+    formData.amount =
+      props.row.amount == null ? null : String(props.row.amount);
     formData.tagIdList = props.row.tagList
       ? props.row.tagList.map(item => item.tagId)
       : [];
@@ -783,9 +1213,18 @@ async function handleOpened() {
     formData.extras = props.row.extras
       ? props.row.extras.map(e => ({ ...e }))
       : [];
-    handleCategoryPayeeTagRefresh();
-    const financeOrderRes = await getUsingFinanceOrderApi(formData.bookId);
-    financeOrderOptions.value = financeOrderRes.data;
+    formData.orderComponent =
+      props.row.orderComponent ??
+      (isOrderLinkedBillType(props.row.billType)
+        ? ORDER_COMPONENT.PRINCIPAL
+        : null);
+    entryRequestIdState.value = null;
+    orderOptionsReady.value = false;
+    await Promise.all([
+      initAccountOptions(),
+      handleCategoryPayeeTagRefresh(),
+      refreshOrderOptions()
+    ]);
     const fileRes = await getFileByBillId(props.row.billId);
     fileList.value = fileRes.data.map(file => ({
       uid: file.fileId,
@@ -800,15 +1239,21 @@ async function handleOpened() {
       isExisting: true
     }));
   } else {
+    resetEntryForm();
     formRef.value?.resetFields();
     formData.bookId = props.bookId;
     formData.tradeTime = dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss");
     formData.memberIdList = [];
     formData.extras = [];
-    const bookRes = await getBookById(props.bookId);
+    const bookRes = await getBookById(Number(props.bookId));
     formData.accountId = bookRes.data.defaultExpenseAccountId;
-    handleCategoryPayeeTagRefresh();
+    orderOptionsReady.value = true;
+    await Promise.all([initAccountOptions(), handleCategoryPayeeTagRefresh()]);
   }
+
+  // 关联归物：编辑时回填已关联的归物，并加载选项
+  formData.goodsKeeperId = (props.row as any)?.goodsKeeperId ?? null;
+  await loadGoodsKeeperOptions();
 }
 
 function handleFile2Blob(file: any) {
@@ -901,7 +1346,7 @@ const accountSideOptions = [
  * @param extraType 1=手续费，2=优惠
  * @param categoryId 关联的分类ID（来自 categoryAmountPair 行；转账场景为 null）
  */
-function addExtra(extraType: 1 | 2, categoryId: number | null) {
+function addExtra(extraType: 1 | 2, categoryId: OrderIdLike | null) {
   // 不可变：创建新数组并附加新对象
   const next = [
     ...(formData.extras ?? []),
@@ -920,7 +1365,7 @@ function addExtra(extraType: 1 | 2, categoryId: number | null) {
  * 分类金额组行内"添加手续费/优惠"按钮处理器。
  * 若该行尚未选分类，则提示用户先选分类；否则追加一条附加项。
  */
-function handleAddExtra(extraType: 1 | 2, categoryId: number | null) {
+function handleAddExtra(extraType: 1 | 2, categoryId: OrderIdLike | null) {
   if (categoryId == null) {
     message("请先选择分类后，再添加手续费/优惠", { type: "warning" });
     return;
@@ -934,10 +1379,10 @@ function removeExtra(index: number) {
 }
 
 /** 获取属于指定分类的附加项的真实索引列表（在 formData.extras 中的索引） */
-function getExtraIndexesByCategory(categoryId: number | null): number[] {
+function getExtraIndexesByCategory(categoryId: OrderIdLike | null): number[] {
   const list = formData.extras ?? [];
   return list.reduce<number[]>((acc, extra, i) => {
-    if ((extra.categoryId ?? null) === (categoryId ?? null)) {
+    if (sameId(extra.categoryId, categoryId)) {
       acc.push(i);
     }
     return acc;
@@ -956,14 +1401,17 @@ function sanitizeExtrasForSubmit(
     extraType?: number;
     amount?: number;
     accountSide?: number;
-    categoryId?: number;
+    categoryId?: OrderIdLike | null;
     remark?: string;
   }>,
-  pairs: Array<{ categoryId?: number; amount?: number }>,
+  pairs: Array<{ categoryId?: OrderIdLike | null; amount?: number | null }>,
   billType: number
 ) {
   const validCategoryIds = new Set(
-    (pairs ?? []).map(p => p?.categoryId).filter(id => id != null) as number[]
+    (pairs ?? [])
+      .map(p => p?.categoryId)
+      .filter(id => id != null)
+      .map(id => String(id))
   );
   return extras
     .filter(e => e && e.amount != null && Number(e.amount) > 0)
@@ -983,7 +1431,7 @@ function sanitizeExtrasForSubmit(
     })
     .filter(e => {
       if (billType === 3) return true;
-      return e.categoryId != null && validCategoryIds.has(e.categoryId);
+      return e.categoryId != null && validCategoryIds.has(String(e.categoryId));
     });
 }
 
@@ -1072,8 +1520,59 @@ async function handleConfirm() {
   if (loading.value) {
     return;
   }
+  loading.value = true;
   try {
     await formRef.value.validate();
+
+    if (rowReadOnly.value) {
+      message(props.row?.readOnlyReason || "当前单据已归档，流水只读", {
+        type: "warning"
+      });
+      return;
+    }
+
+    if (!billTypeOptions.some(item => item.value === formData.billType)) {
+      message("不支持的交易类型，请核对后再提交", { type: "error" });
+      return;
+    }
+
+    const route = resolveEntrySubmitRoute({
+      mode: props.type,
+      billType: formData.billType,
+      orderId: formData.orderId,
+      hasOrderContext: props.contextOrderId != null
+    });
+    const isV2 = route === "V2_ADD" || route === "V2_MODIFY";
+
+    if (isV2 && !orderOptionsReady.value) {
+      message("单据选项未加载完成，请稍后重试", { type: "warning" });
+      return;
+    }
+
+    if (isV2 && !currentOrderInfo.value) {
+      message("单据信息未加载完成，请稍后重试", { type: "warning" });
+      return;
+    }
+
+    const validationError = validateOrderEntry({
+      mode: props.type,
+      billType: formData.billType,
+      orderComponent: currentOrderComponent.value,
+      orderId: formData.orderId,
+      amount: formData.amount,
+      categoryAmountPair: showCategoryFields.value
+        ? formData.categoryAmountPair
+        : [],
+      accountId: formData.accountId,
+      accountCurrencyCode: accountCurrencyCode.value,
+      remark: formData.remark,
+      extrasCount: (formData.extras ?? []).length,
+      order: currentOrderInfo.value
+    });
+    if (validationError) {
+      message(validationError, { type: "error" });
+      return;
+    }
 
     if (
       formData.billType === 3 &&
@@ -1083,11 +1582,15 @@ async function handleConfirm() {
       return;
     }
 
-    loading.value = true;
     if (formData.billType !== 3) {
       formData.toAccountId = null;
     } else {
       formData.categoryAmountPair = [];
+    }
+
+    // 非支出/收入账单不关联归物
+    if (!showLinkedGoodsKeeper.value) {
+      formData.goodsKeeperId = null;
     }
 
     // 清理孤儿附加项 + 标准化字段（不可变：构建新数组用于提交）
@@ -1096,37 +1599,135 @@ async function handleConfirm() {
       formData.categoryAmountPair ?? [],
       formData.billType
     );
+    let mutationResult:
+      | Awaited<ReturnType<typeof addOrderEntryV2>>
+      | Awaited<ReturnType<typeof modifyOrderEntryV2>>
+      | null = null;
 
-    const submitPayload = { ...formData, extras: cleanedExtras };
-    const formDataObj = new FormData();
-    formDataObj.append(
-      "data",
-      new Blob([JSON.stringify(submitPayload)], {
-        type: "application/json"
-      })
-    );
-    if (fileList.value.length !== 0) {
-      fileList.value.forEach(file => {
-        formDataObj.append(`files`, file.raw);
+    if (isV2) {
+      const draftCommand = buildEntryCommand({
+        requestId: entryRequestIdState.value?.requestId ?? "",
+        expectedVersion: expectedVersion.value,
+        orderComponent:
+          currentOrderComponent.value ?? ORDER_COMPONENT.PRINCIPAL,
+        billType: formData.billType as number,
+        title: formData.title as string,
+        tradeTime: formData.tradeTime as string,
+        bookId: formData.bookId,
+        orderId: formData.orderId,
+        billId: props.row?.billId,
+        accountId: formData.accountId,
+        amount: formData.amount,
+        convertedAmount: null,
+        payeeId: formData.payeeId,
+        toAccountId: formData.toAccountId,
+        confirm: formData.confirm,
+        include: formData.include,
+        categoryAmountPair: showCategoryFields.value
+          ? formData.categoryAmountPair
+          : [],
+        remark: formData.remark,
+        tagIdList: formData.tagIdList,
+        memberIdList: formData.memberIdList,
+        extras: []
       });
-    }
-    if (props.type === "add") {
-      await addBillApi(formDataObj);
+      const requestIdResult = ensureEntryRequestId(
+        entryRequestIdState.value,
+        draftCommand as unknown as Record<string, unknown>
+      );
+      entryRequestIdState.value = requestIdResult.state;
+      const command = {
+        ...draftCommand,
+        requestId: requestIdResult.state.requestId
+      };
+      const entryFiles = fileList.value
+        .map(file => file?.raw)
+        .filter(Boolean) as Array<File>;
+      const formDataObj = buildEntryFormData(command, entryFiles);
+
+      if (route === "V2_ADD") {
+        mutationResult = await addOrderEntryV2(
+          formData.bookId as OrderIdLike,
+          formData.orderId as OrderIdLike,
+          formDataObj
+        );
+      } else {
+        mutationResult = await modifyOrderEntryV2(
+          formData.bookId as OrderIdLike,
+          formData.orderId as OrderIdLike,
+          props.row?.billId as OrderIdLike,
+          formDataObj
+        );
+      }
     } else {
-      await modifyBillApi(formDataObj);
+      const submitPayload = {
+        ...formData,
+        extras: cleanedExtras,
+        amount:
+          formData.billType === 3 && typeof formData.amount === "string"
+            ? Number(formData.amount)
+            : formData.amount,
+        orderComponent: undefined,
+        expectedVersion: undefined
+      };
+      const formDataObj = new FormData();
+      formDataObj.append(
+        "data",
+        new Blob([JSON.stringify(submitPayload)], {
+          type: "application/json"
+        })
+      );
+      if (fileList.value.length !== 0) {
+        fileList.value.forEach(file => {
+          formDataObj.append(`files`, file.raw);
+        });
+      }
+      if (props.type === "add") {
+        await addBillApi(formDataObj);
+      } else {
+        await modifyBillApi(formDataObj);
+      }
     }
 
     message("操作成功", { type: "success" });
     visible.value = false;
-    emits("success");
+    emits("success", mutationResult ?? undefined);
   } catch (e) {
-    if (!e.message.includes("validate")) {
-      message(e.message || "操作失败", { type: "error" });
+    if (isOrderVersionConflict(e)) {
+      message((e as Error).message, { type: "warning" });
+    } else if (
+      e &&
+      typeof e === "object" &&
+      "message" in e &&
+      typeof (e as { message?: unknown }).message === "string" &&
+      !(e as { message: string }).message.includes("validate")
+    ) {
+      message((e as Error).message || "操作失败", { type: "error" });
     }
   } finally {
     loading.value = false;
   }
 }
+
+defineExpose({
+  formData,
+  loading,
+  expectedVersion,
+  lockOrderContext,
+  showAccountField,
+  showCategoryFields,
+  showConfirmControls,
+  showExtraFields,
+  showIncludeControls,
+  showMinimalAmountField,
+  showOrderField,
+  showPayeeField,
+  showTagsAndMembers,
+  handleConfirm,
+  handleOpened,
+  handleBillTypeChange,
+  handleBookOrBillTypeChange
+});
 </script>
 
 <style scoped>
